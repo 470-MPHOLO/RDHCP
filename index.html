@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VLAN &amp; DHCP Lab :: Console Drill</title>
+<style>
+  :root{
+    --bg: #0b0f0d;
+    --panel: #0f1512;
+    --line: #1c2a22;
+    --amber: #ffb454;
+    --green: #6ee7a8;
+    --green-dim: #3a7a5c;
+    --text: #cfe8d8;
+    --text-dim: #7c9a89;
+    --red: #ff6b6b;
+    --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: var(--bg);
+    background-image:
+      radial-gradient(circle at 20% -10%, rgba(110,231,168,0.06), transparent 45%),
+      radial-gradient(circle at 90% 10%, rgba(255,180,84,0.05), transparent 40%);
+    color: var(--text);
+    font-family: var(--mono);
+    min-height: 100vh;
+    padding: 28px 16px 80px;
+  }
+  .wrap{ max-width: 760px; margin: 0 auto; }
+
+  .titlebar{
+    display:flex; align-items:center; gap:10px;
+    padding: 10px 14px;
+    background: #111a15;
+    border: 1px solid var(--line);
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+  }
+  .dot{ width:10px; height:10px; border-radius:50%; }
+  .dot.r{background:#ff5f56;} .dot.y{background:#ffbd2e;} .dot.g{background:#27c93f;}
+  .titlebar span{
+    margin-left: 8px; color: var(--text-dim); font-size: 12px; letter-spacing: .04em;
+  }
+
+  .console{
+    border: 1px solid var(--line);
+    border-radius: 0 0 8px 8px;
+    background: var(--panel);
+    padding: 22px 22px 26px;
+  }
+
+  .prompt-line{ color: var(--text-dim); font-size: 12px; margin-bottom: 4px; }
+  .prompt-line .arrow{ color: var(--green); }
+
+  h1{
+    font-size: 20px;
+    color: var(--green);
+    margin: 4px 0 2px;
+    letter-spacing: .01em;
+  }
+  h1 .hash{ color: var(--text-dim); }
+  .subtitle{
+    color: var(--text-dim);
+    font-size: 13px;
+    margin: 0 0 20px;
+    line-height: 1.6;
+  }
+
+  .stats-row{
+    display:flex; gap: 14px; flex-wrap: wrap;
+    font-size: 12px; color: var(--text-dim);
+    border-top: 1px dashed var(--line);
+    border-bottom: 1px dashed var(--line);
+    padding: 10px 0;
+    margin-bottom: 22px;
+  }
+  .stats-row b{ color: var(--amber); font-weight: 600; }
+
+  .qcard{ display:none; }
+  .qcard.active{ display:block; }
+
+  .qmeta{
+    display:flex; justify-content: space-between; align-items:baseline;
+    font-size: 11px; color: var(--text-dim); margin-bottom: 10px;
+    text-transform: uppercase; letter-spacing: .08em;
+  }
+  .qmeta .topic{ color: var(--green-dim); }
+
+  .qtext{
+    font-size: 15.5px;
+    line-height: 1.6;
+    color: var(--text);
+    margin: 0 0 16px;
+    white-space: pre-wrap;
+  }
+  .qtext .code{
+    display:block;
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: #0a0f0c;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--green-dim);
+    color: var(--green);
+    font-size: 13px;
+    overflow-x: auto;
+  }
+
+  .options{ display:flex; flex-direction:column; gap: 8px; margin-bottom: 18px; }
+  .opt{
+    display:flex; align-items:flex-start; gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    background: #0d1310;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text);
+    transition: border-color .12s, background .12s;
+  }
+  .opt:hover{ border-color: var(--green-dim); }
+  .opt .tag{
+    color: var(--text-dim); flex-shrink:0; width: 18px;
+  }
+  .opt.selected{ border-color: var(--amber); background: #17130b; }
+  .opt.correct{ border-color: var(--green); background: #0f1e15; color: var(--green); }
+  .opt.incorrect{ border-color: var(--red); background: #1e0f0f; color: var(--red); }
+  .opt.disabled{ cursor: default; }
+
+  .feedback{
+    display:none;
+    font-size: 13px;
+    line-height: 1.6;
+    padding: 10px 12px;
+    border-left: 3px solid var(--green-dim);
+    background: #0a0f0c;
+    color: var(--text-dim);
+    margin-bottom: 18px;
+  }
+  .feedback.show{ display:block; }
+  .feedback b{ color: var(--text); }
+
+  .nav-row{
+    display:flex; justify-content: space-between; align-items:center;
+    gap: 10px;
+  }
+  button{
+    font-family: var(--mono);
+    font-size: 13px;
+    background: transparent;
+    color: var(--green);
+    border: 1px solid var(--green-dim);
+    padding: 9px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: .03em;
+  }
+  button:hover:not(:disabled){ background: rgba(110,231,168,0.08); }
+  button:disabled{ opacity: .35; cursor: not-allowed; }
+  button.primary{ border-color: var(--amber); color: var(--amber); }
+  button.primary:hover:not(:disabled){ background: rgba(255,180,84,0.08); }
+
+  .progress-track{
+    height: 3px; background: var(--line); border-radius: 2px; margin-bottom: 22px; overflow:hidden;
+  }
+  .progress-fill{ height: 100%; background: var(--green-dim); width: 0%; transition: width .25s; }
+
+  .results{ display:none; }
+  .results.show{ display:block; }
+  .score-big{
+    font-size: 42px; color: var(--amber); margin: 6px 0 2px;
+  }
+  .score-label{ color: var(--text-dim); font-size: 13px; margin-bottom: 20px; }
+  .review-item{
+    border-top: 1px dashed var(--line);
+    padding: 12px 0; font-size: 13px; line-height: 1.6;
+  }
+  .review-item .q{ color: var(--text); margin-bottom: 6px; }
+  .review-item .yourans{ color: var(--red); }
+  .review-item .correctans{ color: var(--green); }
+  .review-item.ok .yourans{ color: var(--green); }
+
+  .restart-row{ margin-top: 20px; }
+
+  ::selection{ background: var(--green-dim); color: #06120c; }
+
+  @media (max-width:480px){
+    .console{ padding: 16px; }
+    h1{ font-size: 17px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="titlebar">
+    <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+    <span>R1 — con0 — Packet Tracer</span>
+  </div>
+
+  <div class="console">
+    <div class="prompt-line"><span class="arrow">&gt;</span> load lab-review --topic vlan-trunk-dhcp</div>
+    <h1><span class="hash">#</span> VLAN / Trunking / DHCP Console Drill</h1>
+    <p class="subtitle">30 questions on the lab: VLAN creation, trunk config, router-on-a-stick, DHCP pools &amp; exclusions, and helper-address vs local DHCP. Answer, get instant feedback, review at the end.</p>
+
+    <div class="stats-row">
+      <div>Question <b><span id="statCurrent">1</span></b>/<span id="statTotal">30</span></div>
+      <div>Correct so far: <b><span id="statCorrect">0</span></b></div>
+      <div>Score: <b><span id="statPct">0%</span></b></div>
+    </div>
+
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+
+    <div id="quizArea"></div>
+
+    <div class="results" id="resultsArea">
+      <div class="prompt-line"><span class="arrow">&gt;</span> drill complete</div>
+      <div class="score-big" id="finalScore">0/30</div>
+      <div class="score-label" id="finalLabel">—</div>
+      <div id="reviewList"></div>
+      <div class="restart-row">
+        <button class="primary" id="restartBtn">restart --fresh</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const QUESTIONS = [
+  {
+    topic: "VLANs",
+    text: "What is the primary purpose of creating VLANs on a switch such as the 2960 in this lab?",
+    code: null,
+    options: [
+      "To increase the physical port count of the switch",
+      "To segment a single physical switch into separate logical broadcast domains",
+      "To convert the switch into a router",
+      "To assign IP addresses to end devices automatically"
+    ],
+    correct: 1,
+    explain: "VLANs logically separate ports into distinct broadcast domains (e.g. VLAN 10 IT, VLAN 20 HR, VLAN 30 Sales) even though they share the same physical switch."
+  },
+  {
+    topic: "VLANs",
+    text: "Which command creates VLAN 20 and names it HR on the switch?",
+    code: "Switch(config)# ?",
+    options: [
+      "vlan 20 name HR",
+      "vlan 20 then (config-vlan)# name HR",
+      "interface vlan 20 name HR",
+      "switchport vlan 20 name HR"
+    ],
+    correct: 1,
+    explain: "You enter vlan 20 (which creates the VLAN and drops you into config-vlan mode), then use name HR as a separate command inside that submode."
+  },
+  {
+    topic: "Switch access ports",
+    text: "Which command set correctly assigns Fa0/1 as an access port in VLAN 10?",
+    code: "interface fa0/1\n ?\n switchport access vlan 10",
+    options: [
+      "switchport mode trunk",
+      "switchport mode access",
+      "switchport trunk vlan 10",
+      "no switchport"
+    ],
+    correct: 1,
+    explain: "switchport mode access forces the port into access mode before switchport access vlan 10 assigns it to VLAN 10."
+  },
+  {
+    topic: "Switch access ports",
+    text: "In the lab topology, Fa0/1-5 belong to VLAN 10, Fa0/6-10 to VLAN 20, and Fa0/11-15 to VLAN 30. Which command efficiently configures a whole range at once?",
+    code: null,
+    options: [
+      "interface group fa0/1-5",
+      "interface range fa0/1-5",
+      "interface batch fa0/1-5",
+      "interface multi fa0/1-5"
+    ],
+    correct: 1,
+    explain: "interface range lets you apply the same configuration to multiple interfaces in one block instead of configuring each port individually."
+  },
+  {
+    topic: "Trunking",
+    text: "Why must the link between the switch (Gi0/1) and the router (Gi0/0) be configured as a trunk rather than an access port?",
+    code: null,
+    options: [
+      "Trunks are faster than access ports",
+      "A trunk carries traffic for multiple VLANs tagged with VLAN IDs over a single link",
+      "Routers cannot use access ports",
+      "Trunks eliminate the need for IP addressing"
+    ],
+    correct: 1,
+    explain: "Since PCs in three different VLANs must all reach the router, the single link needs to carry tagged traffic for all three VLANs — that's what trunking does."
+  },
+  {
+    topic: "Trunking",
+    text: "Which command configures a switch port as a trunk?",
+    code: null,
+    options: [
+      "switchport trunk enable",
+      "switchport mode trunk",
+      "switchport access trunk",
+      "trunk mode on"
+    ],
+    correct: 1,
+    explain: "switchport mode trunk switches the port from access mode into trunk mode, allowing multi-VLAN tagged traffic."
+  },
+  {
+    topic: "Router-on-a-stick",
+    text: "What is the purpose of creating sub-interfaces like Gi0/0.10, Gi0/0.20, and Gi0/0.30 on the router?",
+    code: null,
+    options: [
+      "To physically split the interface into multiple cables",
+      "To create logical interfaces, each tied to a VLAN, enabling inter-VLAN routing over one physical link",
+      "To increase the interface's bandwidth",
+      "To disable trunking on the switch side"
+    ],
+    correct: 1,
+    explain: "This is the 'router-on-a-stick' model: one physical interface, multiple logical sub-interfaces, each handling a specific VLAN's traffic and acting as that VLAN's gateway."
+  },
+  {
+    topic: "Router-on-a-stick",
+    text: "Which command tags a sub-interface to VLAN 10 traffic using 802.1Q?",
+    code: "interface g0/0.10\n ?",
+    options: [
+      "vlan 10",
+      "encapsulation dot1Q 10",
+      "trunk vlan 10",
+      "switchport vlan 10"
+    ],
+    correct: 1,
+    explain: "encapsulation dot1Q 10 tells the sub-interface to process frames tagged with VLAN ID 10 under the 802.1Q trunking standard."
+  },
+  {
+    topic: "Router-on-a-stick",
+    text: "On a router sub-interface, what does the IP address configured (e.g. 192.168.15.1) represent for that VLAN?",
+    code: null,
+    options: [
+      "The DNS server address",
+      "The default gateway for hosts in that VLAN's subnet",
+      "The DHCP relay address",
+      "The switch's management IP"
+    ],
+    correct: 1,
+    explain: "Each sub-interface's IP is the default gateway address for devices in that VLAN, since it's the first usable address in that subnet in this lab's design."
+  },
+  {
+    topic: "Subnetting",
+    text: "VLAN 10 uses 192.168.15.0/27. How many usable host addresses does this subnet provide?",
+    code: null,
+    options: [
+      "14",
+      "30",
+      "62",
+      "126"
+    ],
+    correct: 1,
+    explain: "/27 = 255.255.255.224, giving 32 total addresses, minus network and broadcast = 30 usable hosts."
+  },
+  {
+    topic: "Subnetting",
+    text: "Given VLAN 20's subnet is 192.168.15.32/27, what is its broadcast address?",
+    code: null,
+    options: [
+      "192.168.15.47",
+      "192.168.15.63",
+      "192.168.15.62",
+      "192.168.15.33"
+    ],
+    correct: 1,
+    explain: "A /27 has a block size of 32. Starting at .32, the range runs .32–.63, so the broadcast address (last address in the block) is 192.168.15.63."
+  },
+  {
+    topic: "DHCP fundamentals",
+    text: "What is the main purpose of configuring a router as a DHCP server?",
+    code: null,
+    options: [
+      "To manually assign static IPs to each PC",
+      "To dynamically assign IP addresses, gateway, and DNS info to clients automatically",
+      "To block unauthorized devices from the network",
+      "To translate private IPs to public IPs"
+    ],
+    correct: 1,
+    explain: "DHCP automates IP configuration for clients, removing the need to manually set an IP, subnet mask, gateway, and DNS on every device."
+  },
+  {
+    topic: "DHCP exclusions",
+    text: "Why do you configure ip dhcp excluded-address before creating the DHCP pools?",
+    code: null,
+    options: [
+      "To reserve addresses (like the gateway) so DHCP doesn't accidentally assign them to clients",
+      "To speed up the DHCP leasing process",
+      "To enable DHCP relay",
+      "It has no functional purpose, it's just best practice"
+    ],
+    correct: 0,
+    explain: "Excluded addresses (e.g. the first 5 in each subnet, which include the gateway) are reserved from the dynamic pool so DHCP never hands them out to a client."
+  },
+  {
+    topic: "DHCP exclusions",
+    text: "Which command correctly excludes the first 5 addresses of VLAN 10's subnet (192.168.15.0/27)?",
+    code: null,
+    options: [
+      "ip dhcp pool exclude 192.168.15.1 192.168.15.5",
+      "ip dhcp excluded-address 192.168.15.1 192.168.15.5",
+      "exclude-address 192.168.15.1-5",
+      "ip dhcp reserve 192.168.15.1 192.168.15.5"
+    ],
+    correct: 1,
+    explain: "ip dhcp excluded-address is a global configuration command (not entered inside the pool) that takes a start and end address."
+  },
+  {
+    topic: "DHCP pools",
+    text: "Inside an ip dhcp pool block, which command tells the router which subnet this pool serves?",
+    code: "ip dhcp pool VLAN10-IT\n ?",
+    options: [
+      "subnet 192.168.15.0 255.255.255.224",
+      "network 192.168.15.0 255.255.255.224",
+      "ip range 192.168.15.0/27",
+      "pool-network 192.168.15.0"
+    ],
+    correct: 1,
+    explain: "The network command inside a DHCP pool defines the subnet (and mask) that pool will hand out addresses from."
+  },
+  {
+    topic: "DHCP pools",
+    text: "Which command inside a DHCP pool sets the default gateway that clients will receive?",
+    code: null,
+    options: [
+      "gateway 192.168.15.1",
+      "default-router 192.168.15.1",
+      "ip-gateway 192.168.15.1",
+      "router-address 192.168.15.1"
+    ],
+    correct: 1,
+    explain: "default-router specifies the gateway IP handed to DHCP clients in that pool — typically the router sub-interface's IP."
+  },
+  {
+    topic: "DHCP pools",
+    text: "Which command sets the DNS server address (192.168.15.66) that clients receive via DHCP?",
+    code: null,
+    options: [
+      "dns-server 192.168.15.66",
+      "name-server 192.168.15.66",
+      "ip dns 192.168.15.66",
+      "domain-server 192.168.15.66"
+    ],
+    correct: 0,
+    explain: "dns-server is the correct DHCP pool subcommand for specifying which DNS server clients should use."
+  },
+  {
+    topic: "ip helper-address",
+    text: "In this lab, why is ip helper-address NOT required anywhere in the configuration?",
+    code: null,
+    options: [
+      "Because DHCP is disabled in this lab",
+      "Because the router itself is acting as the DHCP server for all VLANs, so no relay is needed",
+      "Because PCs use static IPs",
+      "Because helper-address only works with IPv6"
+    ],
+    correct: 1,
+    explain: "ip helper-address is only needed when the DHCP server is a separate device from the routing device. Here, R1 both routes and serves DHCP, so no relay is required."
+  },
+  {
+    topic: "ip helper-address",
+    text: "In a different scenario, where the DHCP server sits on a separate server (not the router), what would ip helper-address on a router sub-interface do?",
+    code: null,
+    options: [
+      "Convert client DHCP broadcasts into unicast packets and forward them to the specified DHCP server",
+      "Assign static IPs directly to the interface",
+      "Block DHCP traffic on that interface",
+      "Create a new VLAN automatically"
+    ],
+    correct: 0,
+    explain: "ip helper-address relays broadcast DHCP requests as unicast to a specified server address, since routers don't forward broadcasts by default."
+  },
+  {
+    topic: "Client configuration",
+    text: "On each PC in Packet Tracer, what setting must be changed so it receives an address dynamically?",
+    code: null,
+    options: [
+      "Desktop > IP Configuration > select Static",
+      "Desktop > IP Configuration > select DHCP",
+      "Config > Interface > set Auto-negotiate",
+      "Desktop > Terminal > run ipconfig /renew only"
+    ],
+    correct: 1,
+    explain: "Selecting DHCP in the PC's IP Configuration utility triggers it to broadcast a DHCP discover request instead of using a manually entered static IP."
+  },
+  {
+    topic: "Verification",
+    text: "Which command on the router shows current DHCP leases (IP, MAC, and lease type)?",
+    code: null,
+    options: [
+      "show dhcp leases",
+      "show ip dhcp binding",
+      "show ip interface brief",
+      "show running-config dhcp"
+    ],
+    correct: 1,
+    explain: "show ip dhcp binding lists each leased IP address, the associated client hardware address, and whether it's Automatic or Manual."
+  },
+  {
+    topic: "Verification",
+    text: "If show ip dhcp binding lists 192.168.15.6 as type Automatic, what does 'Automatic' indicate?",
+    code: null,
+    options: [
+      "The address was manually reserved for that MAC",
+      "The address was dynamically leased by the DHCP pool, not manually bound",
+      "The lease has expired",
+      "The address is excluded"
+    ],
+    correct: 1,
+    explain: "Automatic means the router's DHCP process assigned that IP dynamically from the pool, as opposed to a manual/static binding."
+  },
+  {
+    topic: "Verification",
+    text: "Which command is most useful for quickly confirming all router interfaces (including sub-interfaces) are up and correctly addressed?",
+    code: null,
+    options: [
+      "show vlan brief",
+      "show ip interface brief",
+      "show mac address-table",
+      "show cdp neighbors"
+    ],
+    correct: 1,
+    explain: "show ip interface brief lists every interface (and sub-interface) with its IP address and up/down status at a glance."
+  },
+  {
+    topic: "Verification",
+    text: "On the switch, which command confirms which ports are assigned to which VLANs?",
+    code: null,
+    options: [
+      "show vlan brief",
+      "show ip route",
+      "show interfaces trunk only",
+      "show spanning-tree summary"
+    ],
+    correct: 0,
+    explain: "show vlan brief lists each VLAN and the switch ports assigned to it, confirming your access port assignments are correct."
+  },
+  {
+    topic: "Verification",
+    text: "Which command on the switch confirms that Gi0/1 is actually operating as a trunk and which VLANs are allowed?",
+    code: null,
+    options: [
+      "show interfaces trunk",
+      "show vlan trunk-status",
+      "show running-config vlan",
+      "show trunk-ports"
+    ],
+    correct: 0,
+    explain: "show interfaces trunk displays trunking ports, their mode, native VLAN, and the list of VLANs allowed across the trunk."
+  },
+  {
+    topic: "Troubleshooting",
+    text: "A PC in VLAN 30 isn't receiving an IP address at all. Which is the LEAST likely cause given this topology?",
+    code: null,
+    options: [
+      "Fa0/11 is not assigned to VLAN 30 on the switch",
+      "The trunk link is not allowing VLAN 30",
+      "The DHCP pool for VLAN 30 has the wrong network statement",
+      "The PC's cable is a straight-through cable to the switch"
+    ],
+    correct: 3,
+    explain: "A straight-through cable is correct for PC-to-switch connections; that wouldn't cause a DHCP failure. The other three are common misconfigurations that would break DHCP for that VLAN."
+  },
+  {
+    topic: "Troubleshooting",
+    text: "PC0 (VLAN 10) can get a DHCP address but cannot ping PC1 (VLAN 20). What's the most likely cause, assuming DHCP is fully working?",
+    code: null,
+    options: [
+      "Inter-VLAN routing is misconfigured on the router (e.g. wrong sub-interface encapsulation or IP)",
+      "The DHCP pool for VLAN 10 is missing a DNS server",
+      "PC0's cable is unplugged",
+      "VLAN 10 does not exist"
+    ],
+    correct: 0,
+    explain: "Since PC0 already got an address, VLAN/access-port/DHCP basics are fine. A routing issue between VLANs (bad sub-interface config) is the most likely reason cross-VLAN pings fail."
+  },
+  {
+    topic: "Concepts",
+    text: "What does 802.1Q tagging add to an Ethernet frame as it crosses the trunk link?",
+    code: null,
+    options: [
+      "A VLAN ID field identifying which VLAN the frame belongs to",
+      "An encrypted payload",
+      "A new destination MAC address",
+      "A DHCP lease timer"
+    ],
+    correct: 0,
+    explain: "802.1Q inserts a 4-byte tag containing the VLAN ID into the Ethernet frame header so switches/routers know which VLAN the frame belongs to as it crosses a trunk."
+  },
+  {
+    topic: "Concepts",
+    text: "Why can't devices in VLAN 10 and VLAN 20 communicate without a router (or L3 device) even though they're on the same physical switch?",
+    code: null,
+    options: [
+      "VLANs are separate broadcast domains / separate logical Layer 3 networks, so inter-VLAN traffic must be routed",
+      "The switch physically blocks all traffic between any two ports",
+      "VLANs use different cable types",
+      "Switches cannot handle more than one VLAN at a time"
+    ],
+    correct: 0,
+    explain: "Each VLAN represents a separate subnet/broadcast domain. Layer 2 switching alone can't move traffic between different subnets — that requires Layer 3 routing, which is what the router-on-a-stick provides."
+  },
+  {
+    topic: "Concepts",
+    text: "What is the key difference between an access port and a trunk port?",
+    code: null,
+    options: [
+      "An access port carries traffic for one VLAN untagged; a trunk carries traffic for multiple VLANs, tagged",
+      "An access port is always faster than a trunk port",
+      "A trunk port can only connect to routers, never switches",
+      "There is no functional difference"
+    ],
+    correct: 0,
+    explain: "Access ports serve a single VLAN and send/receive untagged frames to end devices; trunk ports carry multiple VLANs' traffic simultaneously, tagged with 802.1Q so the receiving device knows which VLAN each frame belongs to."
+  }
+];
+
+let current = 0;
+let answers = new Array(QUESTIONS.length).fill(null);
+let locked = new Array(QUESTIONS.length).fill(false);
+
+const quizArea = document.getElementById('quizArea');
+const resultsArea = document.getElementById('resultsArea');
+const statCurrent = document.getElementById('statCurrent');
+const statTotal = document.getElementById('statTotal');
+const statCorrect = document.getElementById('statCorrect');
+const statPct = document.getElementById('statPct');
+const progressFill = document.getElementById('progressFill');
+
+statTotal.textContent = QUESTIONS.length;
+
+function render() {
+  const q = QUESTIONS[current];
+  statCurrent.textContent = current + 1;
+  const correctCount = answers.filter((a, i) => a === QUESTIONS[i].correct).length;
+  statCorrect.textContent = correctCount;
+  const answeredCount = answers.filter(a => a !== null).length;
+  statPct.textContent = answeredCount ? Math.round((correctCount / answeredCount) * 100) + '%' : '0%';
+  progressFill.style.width = ((current) / QUESTIONS.length * 100) + '%';
+
+  let html = '';
+  html += `<div class="qmeta"><span class="topic">${q.topic}</span><span>Q${current + 1} / ${QUESTIONS.length}</span></div>`;
+  html += `<div class="qtext">${q.text}${q.code ? `<span class="code">${q.code}</span>` : ''}</div>`;
+  html += `<div class="options">`;
+  const letters = ['A', 'B', 'C', 'D'];
+  q.options.forEach((opt, i) => {
+    let cls = 'opt';
+    if (locked[current]) {
+      cls += ' disabled';
+      if (i === q.correct) cls += ' correct';
+      else if (i === answers[current]) cls += ' incorrect';
+    } else if (answers[current] === i) {
+      cls += ' selected';
+    }
+    html += `<div class="${cls}" data-idx="${i}"><span class="tag">${letters[i]}.</span><span>${opt}</span></div>`;
+  });
+  html += `</div>`;
+
+  html += `<div class="feedback${locked[current] ? ' show' : ''}" id="feedbackBox">
+    <b>${answers[current] === q.correct ? 'Correct.' : 'Not quite.'}</b> ${q.explain}
+  </div>`;
+
+  html += `<div class="nav-row">
+    <button id="prevBtn" ${current === 0 ? 'disabled' : ''}>&larr; back</button>
+    <button class="primary" id="nextBtn" ${!locked[current] ? 'disabled' : ''}>${current === QUESTIONS.length - 1 ? 'finish drill' : 'next \u2192'}</button>
+  </div>`;
+
+  quizArea.innerHTML = html;
+
+  document.querySelectorAll('.opt').forEach(el => {
+    el.addEventListener('click', () => {
+      if (locked[current]) return;
+      const idx = parseInt(el.getAttribute('data-idx'));
+      answers[current] = idx;
+      locked[current] = true;
+      render();
+    });
+  });
+
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  if (prevBtn) prevBtn.addEventListener('click', () => { current--; render(); });
+  if (nextBtn) nextBtn.addEventListener('click', () => {
+    if (current === QUESTIONS.length - 1) {
+      showResults();
+    } else {
+      current++;
+      render();
+    }
+  });
+}
+
+function showResults() {
+  quizArea.style.display = 'none';
+  document.querySelector('.stats-row').style.display = 'none';
+  document.querySelector('.progress-track').style.display = 'none';
+  resultsArea.classList.add('show');
+
+  const correctCount = answers.filter((a, i) => a === QUESTIONS[i].correct).length;
+  const pct = Math.round((correctCount / QUESTIONS.length) * 100);
+  document.getElementById('finalScore').textContent = `${correctCount}/${QUESTIONS.length}`;
+
+  let label = '';
+  if (pct >= 90) label = 'Console mastered. You know this lab cold.';
+  else if (pct >= 75) label = 'Solid. A couple of gaps worth a re-read.';
+  else if (pct >= 50) label = 'Getting there — revisit the missed topics below.';
+  else label = 'Re-run the lab config while reading each command aloud, then retry.';
+  document.getElementById('finalLabel').textContent = `${pct}% — ${label}`;
+
+  let reviewHtml = '';
+  QUESTIONS.forEach((q, i) => {
+    const ok = answers[i] === q.correct;
+    const letters = ['A', 'B', 'C', 'D'];
+    reviewHtml += `<div class="review-item ${ok ? 'ok' : ''}">
+      <div class="q">Q${i + 1}. [${q.topic}] ${q.text}</div>
+      <div class="yourans">Your answer: ${answers[i] !== null ? letters[answers[i]] + '. ' + q.options[answers[i]] : '(skipped)'}</div>
+      ${!ok ? `<div class="correctans">Correct: ${letters[q.correct]}. ${q.options[q.correct]}</div>` : ''}
+    </div>`;
+  });
+  document.getElementById('reviewList').innerHTML = reviewHtml;
+}
+
+document.getElementById('restartBtn').addEventListener('click', () => {
+  current = 0;
+  answers = new Array(QUESTIONS.length).fill(null);
+  locked = new Array(QUESTIONS.length).fill(false);
+  quizArea.style.display = 'block';
+  document.querySelector('.stats-row').style.display = 'flex';
+  document.querySelector('.progress-track').style.display = 'block';
+  resultsArea.classList.remove('show');
+  render();
+});
+
+render();
+</script>
+</body>
+</html>
